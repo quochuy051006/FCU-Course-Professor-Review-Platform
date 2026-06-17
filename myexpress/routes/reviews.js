@@ -1,6 +1,6 @@
-const express = require('express')
-const db = require('../db')
-const { authenticateToken } = require('../middleware/auth')
+import express from 'express'
+import db from '../db.js'
+import { authenticateToken } from '../middleware/auth.js'
 
 const reviewsRouter = express.Router()
 const myReviewsRouter = express.Router()
@@ -448,7 +448,4 @@ myReviewsRouter.get('/', authenticateToken, async (req, res) => {
   }
 })
 
-module.exports = {
-  reviewsRouter,
-  myReviewsRouter,
-}
+export { reviewsRouter, myReviewsRouter }

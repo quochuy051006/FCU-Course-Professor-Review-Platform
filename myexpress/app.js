@@ -16,7 +16,7 @@ import authRouter from './routes/auth.js';
 import coursesRouter from './routes/courses.js';
 import professorsRouter from './routes/professors.js';
 import offeringsRouter from './routes/offerings.js';
-import reviewsRouter from './routes/reviews.js';
+import { reviewsRouter, myReviewsRouter } from './routes/reviews.js';
 
 var app = express();
 app.use(cors());
@@ -42,7 +42,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/courses', coursesRouter);
 app.use('/api/professors', professorsRouter);
 app.use('/api/offerings', offeringsRouter);
-// reviewsRouter dong thoi xu ly /api/me/reviews va /api/reviews/:id
-app.use('/api', reviewsRouter);
+// reviewsRouter: PUT/DELETE /api/reviews/:id
+app.use('/api/reviews', reviewsRouter);
+// myReviewsRouter: GET /api/me/reviews
+app.use('/api/me/reviews', myReviewsRouter);
 
 export default app;
