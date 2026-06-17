@@ -8,7 +8,8 @@ const __dirname = dirname(__filename);
 
 const databasePath = path.join(__dirname, 'database.sqlite');
 
-const db = new sqlite3.verbose().Database(databasePath, (error) => {
+const sqlite3Verbose = sqlite3.verbose();
+const db = new sqlite3Verbose.Database(databasePath, (error) => {
   if (error) {
     console.error('Failed to connect to SQLite:', error.message);
     return;

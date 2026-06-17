@@ -76,9 +76,9 @@ FINAL/
 - [x] Bước 1: Backend cơ bản
 - [x] Bước 2: Database + seed data cơ bản
 - [x] Bước 3: Auth API
+- [x] Bước 4: Course / Professor / Offering / Review API
 
 ### Chưa xong
-- [ ] Bước 4: Course / Professor / Offering / Review API
 - [ ] Bước 5: Vote / Report / Admin API
 - [ ] Bước 6: Frontend Vue cơ bản
 - [ ] Bước 7: Hoàn thiện các trang frontend

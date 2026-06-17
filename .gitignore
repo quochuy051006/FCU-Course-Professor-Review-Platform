@@ -49,3 +49,6 @@ database.sqlite
 
 
 .env
+
+# OpenCode local config
+.opencode/
