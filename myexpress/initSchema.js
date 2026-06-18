@@ -1,41 +1,11 @@
 /**
  * initSchema.js
  *
- * Buoc 4 - Dong bo schema DB theo design chinh thuc.
- *
- * Kien truc (rat quan trong - KHONG doi):
- *   - reviews KHONG co offering_id. Review FK theo (scr_selcode, cls_id) -> classes.
- *   - offerings la lop phuc vu SEARCH va DETAIL.
- *     Moi offering join (course + professor + semester) tu 1 class (scr_selcode, cls_id).
- *     Khi user muon review 1 offering -> server lookup scr_selcode, cls_id cua
- *     offering do va INSERT vao reviews voi 2 cot day. Khong luu offering_id.
- *
- * Bang moi (BUOC 4):
- *   - professors  (da co tu truoc)
- *   - offerings   (da co tu truoc - sinh tu classes)
- *
- * Bang duoc REBUILD theo canonical schema:
- *   - reviews: NOT NULL (scr_selcode, cls_id), UNIQUE (user_id, scr_selcode, cls_id),
- *              FK (scr_selcode, cls_id) -> classes ON DELETE CASCADE,
- *              FK user_id -> users ON DELETE CASCADE,
- *              CHECK rating_* BETWEEN 1-5,
- *              CHECK status IN ('visible','hidden','deleted'),
- *              CHECK is_anonymous IN (0,1).
- *              KHONG co cot offering_id.
- *   - review_tags: PK (review_id, tag_id), FK CASCADE.
- *   - review_votes: PK id, UNIQUE (user_id, review_id), CHECK value IN (-1, 1).
- *   - reports: PK id, UNIQUE (user_id, review_id), CHECK status.
- *
- * Seed trong file nay:
- *   - tags (20 tag mau)
- *   - professors + offerings tu classes.scr_teacher
- *   (Reviews mau do seed.js tao - KHONG lam o day.)
- *
- * Chay:
- *   node initSchema.js          (CLI)
- *   import { runInitSchema } from './initSchema.js'; await runInitSchema();   (programmatic)
- *
- * Idempotent - chay nhieu lan van OK.
+ * Database schema synchronization and seeding script.
+ * * Architecture Constraints:
+ * - reviews table does NOT contain offering_id. It links via composite foreign key (scr_selcode, cls_id) -> classes.
+ * - offerings table is used for SEARCH and DETAIL operations.
+ * - Idempotent: Can be executed multiple times safely without data duplication.
  */
 
 import sqlite3 from 'sqlite3';
@@ -52,7 +22,7 @@ const db = new sqlite3Verbose.Database(path.join(__dirname, 'database.sqlite'));
 db.run('PRAGMA foreign_keys = ON');
 
 // -----------------------------------------------------------------------------
-// Helpers (Promise wrappers)
+// Database Helper Wrappers (Promises)
 // -----------------------------------------------------------------------------
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -62,6 +32,7 @@ function run(sql, params = []) {
     });
   });
 }
+
 function all(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
@@ -70,6 +41,7 @@ function all(sql, params = []) {
     });
   });
 }
+
 function get(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
@@ -80,10 +52,10 @@ function get(sql, params = []) {
 }
 
 // -----------------------------------------------------------------------------
-// Main init function (Promise)
+// Main Initialization Function
 // -----------------------------------------------------------------------------
 export async function runInitSchema() {
-  // ============ 1) professors ============
+  // 1) Create professors table
   await run(`
     CREATE TABLE IF NOT EXISTS professors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,16 +68,13 @@ export async function runInitSchema() {
     )
   `);
 
-  // ============ 2) offerings ============
-  // offerings la lop SEARCH/DETAIL. Moi offering ung voi 1 class (scr_selcode, cls_id).
-  // FK (scr_selcode, cls_id) -> classes dam bao offerings chi duoc tao tu class that.
-  // Rebuild neu schema cu thieu NOT NULL hoac FK classes.
+  // 2) Handle offerings schema migration and setup
   await recreateOfferingsIfNeeded();
   await run(`CREATE INDEX IF NOT EXISTS idx_offerings_course ON offerings(course_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_offerings_professor ON offerings(professor_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_offerings_semester ON offerings(semester)`);
 
-  // ============ 3) courses: them cot can thiet ============
+  // 3) Ensure legacy courses table compatibility mapping
   await addColumnIfMissing('courses', 'name_zh', 'TEXT');
   await addColumnIfMissing('courses', 'name_en', 'TEXT');
   await addColumnIfMissing('courses', 'department', 'TEXT');
@@ -114,19 +83,18 @@ export async function runInitSchema() {
   await run(`UPDATE courses SET code = sub_id3 WHERE code IS NULL OR code = ''`);
   await run(`UPDATE courses SET name_zh = sub_name WHERE name_zh IS NULL OR name_zh = ''`);
 
-  // ============ 4) users: them cot can thiet ============
-  // users da co tu Bước 3. CHECK constraint khong the ALTER, nên can recreate neu khong khop.
+  // 4) Ensure users table safety constraints
   await recreateUsersIfNeeded();
 
-  // ============ 5) reviews: REBUILD theo canonical schema ============
+  // 5) Rebuild canonical reviews system
   await recreateReviewsIfNeeded();
 
-  // ============ 6) review_tags / review_votes / reports: dam bao PK + UNIQUE + FK ============
+  // 6) Validate dependent relational entity schemas
   await recreateReviewTagsIfNeeded();
   await recreateReviewVotesIfNeeded();
   await recreateReportsIfNeeded();
 
-  // ============ 7) Seed tags (idempotent) ============
+  // 7) Seed metadata lookup tags
   const tags = [
     ['作業很多', 'Heavy Workload'],
     ['作業適中', 'Moderate Workload'],
@@ -152,26 +120,26 @@ export async function runInitSchema() {
   const tagStmt = db.prepare(`INSERT OR IGNORE INTO tags (name_zh, name_en) VALUES (?, ?)`);
   tags.forEach(([zh, en]) => tagStmt.run(zh, en));
   await new Promise((resolve) => tagStmt.finalize(resolve));
-  console.log(`Seed tags OK (${tags.length} tag(s))`);
+  console.log(`Seed tags completed (${tags.length} tags processed)`);
 
-  // ============ 8) Seed professors + offerings tu classes ============
+  // 8) Execute data normalization from classes ingestion
   await seedProfessorsAndOfferings();
 
-  // Final report
-  const c = {
-    users:           (await get(`SELECT COUNT(*) AS n FROM users`)).n,
-    courses:         (await get(`SELECT COUNT(*) AS n FROM courses`)).n,
-    classes:         (await get(`SELECT COUNT(*) AS n FROM classes`)).n,
-    professors:      (await get(`SELECT COUNT(*) AS n FROM professors`)).n,
-    offerings:       (await get(`SELECT COUNT(*) AS n FROM offerings`)).n,
-    reviews:         (await get(`SELECT COUNT(*) AS n FROM reviews`)).n,
-    tags:            (await get(`SELECT COUNT(*) AS n FROM tags`)).n,
+  // Global metric summary execution audit report
+  const metrics = {
+    users:       (await get(`SELECT COUNT(*) AS n FROM users`)).n,
+    courses:     (await get(`SELECT COUNT(*) AS n FROM courses`)).n,
+    classes:     (await get(`SELECT COUNT(*) AS n FROM classes`)).n,
+    professors:  (await get(`SELECT COUNT(*) AS n FROM professors`)).n,
+    offerings:   (await get(`SELECT COUNT(*) AS n FROM offerings`)).n,
+    reviews:     (await get(`SELECT COUNT(*) AS n FROM reviews`)).n,
+    tags:        (await get(`SELECT COUNT(*) AS n FROM tags`)).n,
   };
-  console.log('Final counts:', JSON.stringify(c));
+  console.log('Final database entity metrics:', JSON.stringify(metrics));
 }
 
 // -----------------------------------------------------------------------------
-// Sub-functions
+// Sub-migration Pipeline Routines
 // -----------------------------------------------------------------------------
 async function addColumnIfMissing(table, column, typeAndDefault) {
   const cols = await all(`PRAGMA table_info(${table})`);
@@ -179,28 +147,21 @@ async function addColumnIfMissing(table, column, typeAndDefault) {
   if (!exists) {
     try {
       await run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeAndDefault}`);
-      console.log(`ALTER TABLE ${table} ADD COLUMN ${column} OK`);
+      console.log(`Alteration success: Added column ${column} to table ${table}`);
     } catch (e) {
-      console.error(`ALTER ${table} ADD ${column} failed:`, e.message);
+      console.error(`Alteration failure for table ${table} on column ${column}:`, e.message);
     }
   }
 }
 
-// Can recreate users neu thieu cot can thiet (hien tai da co schema chuan).
 async function recreateUsersIfNeeded() {
   const cols = await all(`PRAGMA table_info(users)`);
   const names = cols.map(c => c.name);
-  // users da co schema chuan tu Bước 3 - chi can them cot neu thieu (an toan)
   if (!names.includes('is_banned')) {
     await run(`ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0`);
   }
-  // Dam bao co UNIQUE email (no se co roi tu schema cu)
-  // Khong can recreate vi data da co
 }
 
-// offerings: rebuild neu thieu NOT NULL (scr_selcode, cls_id) hoac FK classes.
-// offerings KHONG FK truc tiep vao reviews (reviews chi FK -> classes). Nen rebuild
-// offerings rat an toan, khong can drop bang phu thuoc.
 async function recreateOfferingsIfNeeded() {
   const exists = await get(`SELECT name FROM sqlite_master WHERE type='table' AND name='offerings'`);
   if (exists) {
@@ -210,11 +171,12 @@ async function recreateOfferingsIfNeeded() {
     const hasNotNullSelcode = cols.some(c => c.name === 'scr_selcode' && c.notnull === 1);
     const hasNotNullClsId   = cols.some(c => c.name === 'cls_id' && c.notnull === 1);
     const hasFkClasses = /FOREIGN KEY.*\(?\s*SCR_SELCODE\s*,\s*CLS_ID\s*\)?.*REFERENCES\s+CLASSES/.test(txt);
+    
     if (hasNotNullSelcode && hasNotNullClsId && hasFkClasses) {
-      console.log('offerings: schema already canonical - skip rebuild');
+      console.log('Offerings entity matches canonical structural definition - skipping rebuild.');
       return;
     }
-    console.log('offerings: schema khong khop canonical, rebuild (giu data)');
+    console.log('Offerings structural mismatch detected. Migrating definitions safely...');
   }
 
   const tmp = '_offerings_old';
@@ -238,31 +200,18 @@ async function recreateOfferingsIfNeeded() {
   `);
 
   if (exists) {
-    // Copy data cu, chi lay rows co scr_selcode/cls_id NOT NULL (loc NULL cu).
     await run(`INSERT OR IGNORE INTO offerings
       (id, course_id, professor_id, semester, scr_selcode, cls_id, created_at)
       SELECT id, course_id, professor_id, semester, scr_selcode, cls_id, created_at
       FROM ${tmp}
       WHERE scr_selcode IS NOT NULL AND cls_id IS NOT NULL`);
     await run(`DROP TABLE ${tmp}`);
-    console.log('Rebuild offerings: copied existing rows');
+    console.log('Migration recovery completed for offerings table structural data mapping.');
   } else {
-    console.log('Rebuild offerings: created new table');
+    console.log('Offerings transactional structural model storage provisioned.');
   }
 }
 
-// Reviews: luon rebuild theo canonical schema de dam bao NOT NULL + CHECK + UNIQUE + FK.
-// (Recreate chi khi schema KHONG khop -> tranh mat data.)
-//
-// Canonical schema (CHOT):
-//   - KHONG co cot offering_id. Review FK theo (scr_selcode, cls_id) -> classes.
-//   - NOT NULL scr_selcode, cls_id, user_id
-//   - 6 cot rating_* NOT NULL, CHECK BETWEEN 1 AND 5
-//   - status NOT NULL DEFAULT 'visible' CHECK IN (visible/hidden/deleted)
-//   - is_anonymous NOT NULL DEFAULT 0 CHECK IN (0,1)
-//   - UNIQUE (user_id, scr_selcode, cls_id)
-//   - FK (scr_selcode, cls_id) -> classes ON DELETE CASCADE
-//   - FK user_id -> users ON DELETE CASCADE
 async function recreateReviewsIfNeeded() {
   const exists = await get(`SELECT name FROM sqlite_master WHERE type='table' AND name='reviews'`);
   if (exists) {
@@ -270,7 +219,6 @@ async function recreateReviewsIfNeeded() {
     const sql = await get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='reviews'`);
     const txt = (sql?.sql || '').toUpperCase();
 
-    // Check canonical schema day du. QUAN TRONG: phai dam bao KHONG co cot offering_id.
     const hasNoOfferingId = !cols.some(c => c.name === 'offering_id');
     const hasNotNullSelcode = cols.some(c => c.name === 'scr_selcode' && c.notnull === 1);
     const hasNotNullClsId = cols.some(c => c.name === 'cls_id' && c.notnull === 1);
@@ -283,37 +231,21 @@ async function recreateReviewsIfNeeded() {
     const hasFkUsers = /FOREIGN KEY.*USER_ID.*REFERENCES\s+USERS/.test(txt);
 
     const ok =
-      hasNoOfferingId &&
-      hasNotNullSelcode &&
-      hasNotNullClsId &&
-      hasNotNullUserId &&
-      hasRatingCheck &&
-      hasStatusCheck &&
-      hasAnonCheck &&
-      hasUniqueTriple &&
-      hasFkClasses &&
-      hasFkUsers;
+      hasNoOfferingId && hasNotNullSelcode && hasNotNullClsId && hasNotNullUserId &&
+      hasRatingCheck && hasStatusCheck && hasAnonCheck && hasUniqueTriple &&
+      hasFkClasses && hasFkUsers;
 
     if (ok) {
-      console.log('reviews: schema already canonical - skip rebuild');
+      console.log('Reviews relational schema validation succeeded - skipping rebuild.');
       return;
-    } else {
-      console.log('reviews: schema khong khop canonical, can rebuild', {
-        hasNoOfferingId, hasNotNullSelcode, hasNotNullClsId, hasNotNullUserId,
-        hasRatingCheck, hasStatusCheck, hasAnonCheck, hasUniqueTriple, hasFkClasses, hasFkUsers,
-      });
     }
+    console.log('Reviews internal structural anomaly found. Initiating dynamic table rebuild execution...');
   }
 
-  console.log('Rebuilding reviews table to canonical schema ...');
-
-  // Truoc khi rename `reviews`, can DROP cac bang phu thuoc vi FK dang tro vao reviews.
-  // Lam theo thu tu nguoc: reports -> review_votes -> review_tags.
   await run(`DROP TABLE IF EXISTS reports`);
   await run(`DROP TABLE IF EXISTS review_votes`);
   await run(`DROP TABLE IF EXISTS review_tags`);
 
-  // Tao bang tam voi schema dung (giu data neu co)
   const tmp = '_reviews_old';
   await run(`DROP TABLE IF EXISTS ${tmp}`);
   if (exists) {
@@ -345,8 +277,6 @@ async function recreateReviewsIfNeeded() {
   `);
 
   if (exists) {
-    // Copy data cu (chi giu rows co scr_selcode, cls_id hop le)
-    // BO QUA cot offering_id neu schema cu co (de tuong thich nguoc).
     await run(`INSERT OR IGNORE INTO reviews
       (id, scr_selcode, cls_id, user_id, is_anonymous,
        rating_teaching_quality, rating_grading_fairness, rating_workload,
@@ -361,30 +291,26 @@ async function recreateReviewsIfNeeded() {
       FROM ${tmp}
       WHERE scr_selcode IS NOT NULL AND cls_id IS NOT NULL`);
     await run(`DROP TABLE ${tmp}`);
-    console.log('Rebuild reviews: copied existing rows (where scr_selcode/cls_id valid)');
+    console.log('Reviews core database relational table restoration structural synchronization finalized.');
   } else {
-    console.log('Rebuild reviews: created new table');
+    console.log('Reviews engine database data pipeline initialization created successfully.');
   }
 }
 
-// review_tags: PK (review_id, tag_id), FK CASCADE
 async function recreateReviewTagsIfNeeded() {
   const exists = await get(`SELECT name FROM sqlite_master WHERE type='table' AND name='review_tags'`);
   if (exists) {
-    const cols = await all(`PRAGMA table_info(review_tags)`);
     const sql = await get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='review_tags'`);
     const txt = (sql?.sql || '').toUpperCase();
     const ok = /PRIMARY KEY.*REVIEW_ID.*TAG_ID/.test(txt) &&
                /FOREIGN KEY.*REVIEW_ID.*REFERENCES REVIEWS/.test(txt) &&
                /FOREIGN KEY.*TAG_ID.*REFERENCES TAGS/.test(txt);
     if (ok) {
-      console.log('review_tags: schema already canonical - skip rebuild');
+      console.log('Review_tags relational schema validation succeeded.');
       return;
     }
-    console.log('review_tags: schema khong khop canonical, rebuild');
   }
 
-  console.log('Rebuilding review_tags table ...');
   const tmp = '_review_tags_old';
   await run(`DROP TABLE IF EXISTS ${tmp}`);
   if (exists) await run(`ALTER TABLE review_tags RENAME TO ${tmp}`);
@@ -400,31 +326,23 @@ async function recreateReviewTagsIfNeeded() {
   `);
 
   if (exists) {
-    await run(`INSERT OR IGNORE INTO review_tags (review_id, tag_id)
-               SELECT review_id, tag_id FROM ${tmp}`);
+    await run(`INSERT OR IGNORE INTO review_tags (review_id, tag_id) SELECT review_id, tag_id FROM ${tmp}`);
     await run(`DROP TABLE ${tmp}`);
-    console.log('Rebuild review_tags: copied existing rows');
   }
 }
 
-// review_votes: PK id, UNIQUE (user_id, review_id), FK CASCADE, CHECK value IN (-1,1)
 async function recreateReviewVotesIfNeeded() {
   const exists = await get(`SELECT name FROM sqlite_master WHERE type='table' AND name='review_votes'`);
   if (exists) {
-    const cols = await all(`PRAGMA table_info(review_votes)`);
     const sql = await get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='review_votes'`);
     const txt = (sql?.sql || '').toUpperCase();
-    const ok = /PRIMARY KEY.*ID/.test(txt) &&
-               /UNIQUE.*USER_ID.*REVIEW_ID/.test(txt) &&
-               /CHECK.*VALUE.*IN.*-1.*1/.test(txt);
+    const ok = /PRIMARY KEY.*ID/.test(txt) && /UNIQUE.*USER_ID.*REVIEW_ID/.test(txt) && /CHECK.*VALUE.*IN.*-1.*1/.test(txt);
     if (ok) {
-      console.log('review_votes: schema already canonical - skip rebuild');
+      console.log('Review_votes verification process passed successfully.');
       return;
     }
-    console.log('review_votes: schema khong khop canonical, rebuild');
   }
 
-  console.log('Rebuilding review_votes table ...');
   const tmp = '_review_votes_old';
   await run(`DROP TABLE IF EXISTS ${tmp}`);
   if (exists) await run(`ALTER TABLE review_votes RENAME TO ${tmp}`);
@@ -444,32 +362,23 @@ async function recreateReviewVotesIfNeeded() {
 
   if (exists) {
     await run(`INSERT OR IGNORE INTO review_votes (review_id, user_id, value, created_at)
-               SELECT review_id, user_id,
-                      CASE WHEN value IN (-1, 1) THEN value ELSE 1 END,
-                      created_at
-               FROM ${tmp}`);
+               SELECT review_id, user_id, CASE WHEN value IN (-1, 1) THEN value ELSE 1 END, created_at FROM ${tmp}`);
     await run(`DROP TABLE ${tmp}`);
-    console.log('Rebuild review_votes: copied existing rows');
   }
 }
 
-// reports: PK id, UNIQUE (user_id, review_id), FK CASCADE, status CHECK
 async function recreateReportsIfNeeded() {
   const exists = await get(`SELECT name FROM sqlite_master WHERE type='table' AND name='reports'`);
   if (exists) {
     const sql = await get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='reports'`);
     const txt = (sql?.sql || '').toUpperCase();
-    const ok = /PRIMARY KEY.*ID/.test(txt) &&
-               /UNIQUE.*USER_ID.*REVIEW_ID/.test(txt) &&
-               /CHECK.*STATUS.*IN.*PENDING.*RESOLVED/.test(txt);
+    const ok = /PRIMARY KEY.*ID/.test(txt) && /UNIQUE.*USER_ID.*REVIEW_ID/.test(txt) && /CHECK.*STATUS.*IN.*PENDING.*RESOLVED/.test(txt);
     if (ok) {
-      console.log('reports: schema already canonical - skip rebuild');
+      console.log('Reports normalization architecture verification complete.');
       return;
     }
-    console.log('reports: schema khong khop canonical, rebuild');
   }
 
-  console.log('Rebuilding reports table ...');
   const tmp = '_reports_old';
   await run(`DROP TABLE IF EXISTS ${tmp}`);
   if (exists) await run(`ALTER TABLE reports RENAME TO ${tmp}`);
@@ -490,12 +399,8 @@ async function recreateReportsIfNeeded() {
 
   if (exists) {
     await run(`INSERT OR IGNORE INTO reports (review_id, user_id, reason, status, created_at)
-               SELECT review_id, user_id, reason,
-                      CASE WHEN status IN ('pending','resolved','dismissed') THEN status ELSE 'pending' END,
-                      created_at
-               FROM ${tmp}`);
+               SELECT review_id, user_id, reason, CASE WHEN status IN ('pending','resolved','dismissed') THEN status ELSE 'pending' END, created_at FROM ${tmp}`);
     await run(`DROP TABLE ${tmp}`);
-    console.log('Rebuild reports: copied existing rows');
   }
 }
 
@@ -536,7 +441,7 @@ async function seedProfessorsAndOfferings() {
         professorCache.set(key, again.id);
         return again.id;
       }
-      console.error('INSERT professor failed:', e.message);
+      console.error('INSERT professor execution failed:', e.message);
       return null;
     }
   }
@@ -555,29 +460,35 @@ async function seedProfessorsAndOfferings() {
       inserted++;
     } catch (e) {
       if (!/UNIQUE/.test(e.message)) {
-        console.error('INSERT offering failed:', e.message);
+        console.error('INSERT dynamic offering mapping failed:', e.message);
       }
     }
   }
-  console.log(`Seeded offerings: ${inserted} processed`);
+  console.log(`Dynamic seeding engine: Data extraction complete. ${inserted} offerings mapped.`);
 }
 
 // -----------------------------------------------------------------------------
-// CLI entry point
+// Safe Cross-Platform CLI Execution Block (Windows Friendly Paths Detection)
 // -----------------------------------------------------------------------------
 const isCli = (() => {
   try {
-    return import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`;
+    const currentFile = fileURLToPath(import.meta.url).toLowerCase().replace(/\\/g, '/');
+    const runningFile = path.resolve(process.argv[1]).toLowerCase().replace(/\\/g, '/');
+    return currentFile === runningFile;
   } catch {
     return false;
   }
 })();
 
 if (isCli) {
+  console.log('🚀 Executing database initialization pipeline...');
   runInitSchema()
-    .then(() => db.close())
+    .then(() => {
+      console.log('🎉 Structural initialization and seeding routines completed smoothly!');
+      db.close();
+    })
     .catch((err) => {
-      console.error('initSchema failed:', err);
+      console.error('❌ Pipeline failure initialization failed:', err);
       db.close();
       process.exit(1);
     });
