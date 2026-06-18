@@ -52,3 +52,8 @@ database.sqlite
 
 # OpenCode local config
 .opencode/
+
+# Local debug / inspect scripts (không commit)
+myexpress/_inspect_reviews.js
+myexpress/_seed_users.mjs
+myexpress/inspectSchema.js

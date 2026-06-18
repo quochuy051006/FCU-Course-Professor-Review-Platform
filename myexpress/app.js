@@ -17,6 +17,9 @@ import coursesRouter from './routes/courses.js';
 import professorsRouter from './routes/professors.js';
 import offeringsRouter from './routes/offerings.js';
 import { reviewsRouter, myReviewsRouter } from './routes/reviews.js';
+import votesRouter from './routes/votes.js';
+import reportsRouter from './routes/reports.js';
+import adminRouter from './routes/admin.js';
 
 var app = express();
 app.use(cors());
@@ -46,5 +49,15 @@ app.use('/api/offerings', offeringsRouter);
 app.use('/api/reviews', reviewsRouter);
 // myReviewsRouter: GET /api/me/reviews
 app.use('/api/me/reviews', myReviewsRouter);
+
+// Buoc 5: Vote / Report / Admin API
+// POST /api/reviews/:id/vote     -> votes.js
+// POST /api/reviews/:id/report   -> reports.js
+// GET /api/admin/reports         -> admin.js
+// PUT /api/admin/reviews/:id/hide      -> admin.js
+// PUT /api/admin/reports/:id/resolve   -> admin.js
+app.use('/api/reviews', votesRouter);
+app.use('/api/reviews', reportsRouter);
+app.use('/api/admin', adminRouter);
 
 export default app;

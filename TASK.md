@@ -77,9 +77,9 @@ FINAL/
 - [x] Bước 2: Database + seed data cơ bản
 - [x] Bước 3: Auth API
 - [x] Bước 4: Course / Professor / Offering / Review API
+- [x] Bước 5: Vote / Report / Admin API
 
 ### Chưa xong
-- [ ] Bước 5: Vote / Report / Admin API
 - [ ] Bước 6: Frontend Vue cơ bản
 - [ ] Bước 7: Hoàn thiện các trang frontend
 - [ ] Bước 8: README hoàn chỉnh + HackMD/Notion + kiểm tra trước khi nộp
@@ -170,50 +170,52 @@ Làm đăng ký, đăng nhập, xác thực email demo.
 ## Mục tiêu
 Làm phần nghiệp vụ chính của hệ thống.
 
+> **Lưu ý:** Cấu trúc thực tế của repo dùng `myexpress/` thay vì `server/`. Các file bên dưới map sang `myexpress/routes/*`. Đăng ký trong `myexpress/app.js:42-48`.
+
 ## File cần tạo
-- [ ] `server/routes/courses.js`
-- [ ] `server/routes/professors.js`
-- [ ] `server/routes/offerings.js`
-- [ ] `server/routes/reviews.js`
+- [x] `server/routes/courses.js` (thực tế: `myexpress/routes/courses.js`)
+- [x] `server/routes/professors.js` (thực tế: `myexpress/routes/professors.js`)
+- [x] `server/routes/offerings.js` (thực tế: `myexpress/routes/offerings.js`)
+- [x] `server/routes/reviews.js` (thực tế: `myexpress/routes/reviews.js`)
 
 ## API cần làm
-- [ ] `GET /api/courses`
-- [ ] `GET /api/professors`
-- [ ] `GET /api/offerings`
-- [ ] `GET /api/offerings/search?q=...`
-- [ ] `GET /api/offerings/:id`
-- [ ] `GET /api/offerings/:id/reviews`
-- [ ] `POST /api/offerings/:id/reviews`
-- [ ] `PUT /api/reviews/:id`
-- [ ] `DELETE /api/reviews/:id`
-- [ ] `GET /api/me/reviews`
+- [x] `GET /api/courses` (`courses.js:7`)
+- [x] `GET /api/professors` (`professors.js:17`)
+- [x] `GET /api/offerings` (`offerings.js:85`)
+- [x] `GET /api/offerings/search?q=...` (`offerings.js:100`)
+- [x] `GET /api/offerings/:id` (`offerings.js:136`)
+- [x] `GET /api/offerings/:id/reviews` (`offerings.js:266`)
+- [x] `POST /api/offerings/:id/reviews` (`offerings.js:386`, yêu cầu `authenticateToken + requireVerified`)
+- [x] `PUT /api/reviews/:id` (`reviews.js:185`, yêu cầu `authenticateToken`, chỉ owner)
+- [x] `DELETE /api/reviews/:id` (`reviews.js:359`, yêu cầu `authenticateToken`, chỉ owner)
+- [x] `GET /api/me/reviews` (`reviews.js:410` qua `myReviewsRouter`, yêu cầu `authenticateToken`)
 
 ## Logic bắt buộc
-- [ ] Offering phải là `Course + Professor + Semester`
-- [ ] Search theo course code
-- [ ] Search theo tên môn English
-- [ ] Search theo tên môn Chinese
-- [ ] Search theo tên giảng viên English
-- [ ] Search theo tên giảng viên Chinese
-- [ ] Search theo semester
-- [ ] Chỉ user đã login + verified mới tạo review
-- [ ] Validate 6 rating từ 1 đến 5
-- [ ] `comment` không được rỗng
-- [ ] Một user chỉ review 1 lần cho 1 offering
-- [ ] Review anonymous chỉ hiện `匿名學生`
-- [ ] Không lộ `user_id`, `email` trong public review API
-- [ ] Chỉ owner được sửa review
-- [ ] Chỉ owner được xóa review
-- [ ] Xóa review là soft delete: `status = deleted`
-- [ ] Chỉ hiện review có `status = visible`
+- [x] Offering phải là `Course + Professor + Semester` (`offerings.js` JOIN `courses` + `professors` theo `course_id`/`professor_id` + cột `semester`)
+- [x] Search theo course code (`offerings.js:113` `c.code LIKE ?`)
+- [x] Search theo tên môn English (`offerings.js:114` `c.name_en LIKE ?`)
+- [x] Search theo tên môn Chinese (`offerings.js:115` `c.name_zh LIKE ?`)
+- [x] Search theo tên giảng viên English (`offerings.js:116` `p.name_en LIKE ?`)
+- [x] Search theo tên giảng viên Chinese (`offerings.js:117` `p.name_zh LIKE ?`)
+- [x] Search theo semester (`offerings.js:118` `o.semester LIKE ?`)
+- [x] Chỉ user đã login + verified mới tạo review (`offerings.js:386` dùng `authenticateToken + requireVerified`)
+- [x] Validate 6 rating từ 1 đến 5 (`offerings.js:398-415`)
+- [x] `comment` không được rỗng (`offerings.js:393-396`)
+- [x] Một user chỉ review 1 lần cho 1 offering (`offerings.js:445-458` check trùng theo `user_id + scr_selcode + cls_id`)
+- [x] Review anonymous chỉ hiện `匿名學生` (`offerings.js:341-343`)
+- [x] Không lộ `user_id`, `email` trong public review API (`offerings.js:339-368` chỉ trả về `author_name` từ email trước `@`, không trả `user_id`/`user_email`)
+- [x] Chỉ owner được sửa review (`reviews.js:205-209`)
+- [x] Chỉ owner được xóa review (`reviews.js:380-384`)
+- [x] Xóa review là soft delete: `status = deleted` (`reviews.js:392-396`)
+- [x] Chỉ hiện review có `status = visible` (`offerings.js:301` trong list reviews; `offerings.js:65,75,191,217` trong count/avg/tags)
 
 ## Tiêu chí hoàn thành
-- Có thể lấy danh sách courses
-- Có thể lấy danh sách professors
-- Có thể tìm offerings
-- Có thể xem detail một offering
-- Có thể tạo, sửa, xóa mềm review
-- Có thể xem `My Reviews`
+- [x] Có thể lấy danh sách courses
+- [x] Có thể lấy danh sách professors
+- [x] Có thể tìm offerings
+- [x] Có thể xem detail một offering
+- [x] Có thể tạo, sửa, xóa mềm review
+- [x] Có thể xem `My Reviews`
 
 ---
 
@@ -222,39 +224,39 @@ Làm phần nghiệp vụ chính của hệ thống.
 Thêm tương tác và kiểm duyệt.
 
 ## File cần tạo
-- [ ] `server/routes/votes.js`
-- [ ] `server/routes/reports.js`
-- [ ] `server/routes/admin.js`
+- [x] `server/routes/votes.js`
+- [x] `server/routes/reports.js`
+- [x] `server/routes/admin.js`
 
 ## API cần làm
-- [ ] `POST /api/reviews/:id/vote`
-- [ ] `POST /api/reviews/:id/report`
-- [ ] `GET /api/admin/reports`
-- [ ] `PUT /api/admin/reviews/:id/hide`
-- [ ] `PUT /api/admin/reports/:id/resolve`
+- [x] `POST /api/reviews/:id/vote`
+- [x] `POST /api/reviews/:id/report`
+- [x] `GET /api/admin/reports`
+- [x] `PUT /api/admin/reviews/:id/hide`
+- [x] `PUT /api/admin/reports/:id/resolve`
 
 ## Vote rules
-- [ ] Chỉ user đã login + verified mới vote
-- [ ] `value` chỉ nhận `1` hoặc `-1`
-- [ ] Không cho vote review của chính mình
-- [ ] Nếu đã vote thì update
-- [ ] Nếu chưa vote thì insert
+- [x] Chỉ user đã login + verified mới vote
+- [x] `value` chỉ nhận `1` hoặc `-1`
+- [x] Không cho vote review của chính mình
+- [x] Nếu đã vote thì update
+- [x] Nếu chưa vote thì insert
 
 ## Report rules
-- [ ] Chỉ user đã login + verified mới report
-- [ ] `reason` không được rỗng
-- [ ] Một user chỉ report một review một lần
+- [x] Chỉ user đã login + verified mới report
+- [x] `reason` không được rỗng
+- [x] Một user chỉ report một review một lần
 
 ## Admin rules
-- [ ] Chỉ admin mới vào được `/api/admin/*`
-- [ ] Admin xem được danh sách report pending
-- [ ] Admin hide review bằng `status = hidden`
-- [ ] Admin resolve report bằng `status = resolved`
+- [x] Chỉ admin mới vào được `/api/admin/*`
+- [x] Admin xem được danh sách report pending
+- [x] Admin hide review bằng `status = hidden`
+- [x] Admin resolve report bằng `status = resolved`
 
 ## Tiêu chí hoàn thành
-- Vote hoạt động
-- Report hoạt động
-- Admin dashboard API hoạt động
+- [x] Vote hoạt động
+- [x] Report hoạt động
+- [x] Admin dashboard API hoạt động
 
 ---
 
@@ -443,10 +445,10 @@ Chuẩn bị tài liệu nộp bài.
 ## 7. Ưu tiên làm việc tiếp theo
 
 ### Ưu tiên cao nhất
-- [ ] Hoàn thành Bước 4
+- [x] Hoàn thành Bước 4
 
 ### Ưu tiên thứ hai
-- [ ] Hoàn thành Bước 5
+- [x] Hoàn thành Bước 5
 
 ### Sau đó mới làm
 - [ ] Bước 6
@@ -462,10 +464,11 @@ Tình trạng hiện tại:
 - Backend cơ bản: ổn
 - Database + seed: ổn
 - Auth API: ổn
-- API nghiệp vụ chính: chưa làm
+- API nghiệp vụ chính (Course / Professor / Offering / Review): ổn
+- Vote / Report / Admin API: ổn
 - Frontend hoàn chỉnh: chưa làm
 - README / báo cáo: chưa hoàn thiện
 
 **Kết luận cuối:**
-Project hiện tại đã xong khoảng **3/8 bước**.  
-Việc cần làm ngay bây giờ là **Bước 4: Course / Professor / Offering / Review API**.
+Project hiện tại đã xong khoảng **5/8 bước**.  
+Việc cần làm ngay bây giờ là **Bước 6: Frontend Vue cơ bản**.

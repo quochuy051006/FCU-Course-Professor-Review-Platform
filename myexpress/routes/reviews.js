@@ -124,10 +124,17 @@ async function attachTags(reviews) {
 }
 
 async function getReviewResponse(reviewId) {
+  // Schema canonical: reviews KHONG co offering_id. Review FK theo
+  // (scr_selcode, cls_id) -> classes. Can JOIN: reviews -> classes
+  // (de lay sub_id3, scr_teacher) -> offerings (de lay semester)
+  // -> courses (sub_id3 = offerings.course_id)
+  // -> professors (id = offerings.professor_id).
   const reviews = await all(
     `SELECT
        reviews.id,
-       reviews.offering_id,
+       reviews.scr_selcode,
+       reviews.cls_id,
+       reviews.user_id,
        reviews.is_anonymous,
        reviews.rating_teaching_quality,
        reviews.rating_grading_fairness,
@@ -151,16 +158,22 @@ async function getReviewResponse(reviewId) {
        reviews.status,
        reviews.created_at,
        reviews.updated_at,
+       offerings.id AS offering_id,
+       offerings.semester,
+       courses.sub_id3 AS course_id,
        courses.code AS course_code,
        courses.name_en AS course_name_en,
        courses.name_zh AS course_name_zh,
+       professors.id AS professor_id,
        professors.name_en AS professor_name_en,
-       professors.name_zh AS professor_name_zh,
-       offerings.semester
+       professors.name_zh AS professor_name_zh
      FROM reviews
-     JOIN offerings ON offerings.id = reviews.offering_id
-     JOIN courses ON courses.id = offerings.course_id
-     JOIN professors ON professors.id = offerings.professor_id
+     JOIN classes ON classes.scr_selcode = reviews.scr_selcode
+                  AND classes.cls_id      = reviews.cls_id
+     LEFT JOIN offerings ON offerings.scr_selcode = reviews.scr_selcode
+                         AND offerings.cls_id      = reviews.cls_id
+     LEFT JOIN courses ON courses.sub_id3 = offerings.course_id
+     LEFT JOIN professors ON professors.id = offerings.professor_id
      WHERE reviews.id = ?`,
     [reviewId],
   )
@@ -396,10 +409,16 @@ reviewsRouter.delete('/:id', authenticateToken, async (req, res) => {
 
 myReviewsRouter.get('/', authenticateToken, async (req, res) => {
   try {
+    // Schema canonical: reviews KHONG co offering_id. JOIN reviews -> classes
+    // -> LEFT JOIN offerings (de lay semester)
+    // -> LEFT JOIN courses (sub_id3 = offerings.course_id)
+    // -> LEFT JOIN professors (id = offerings.professor_id).
     const reviews = await all(
       `SELECT
          reviews.id,
-         reviews.offering_id,
+         reviews.scr_selcode,
+         reviews.cls_id,
+         reviews.user_id,
          reviews.is_anonymous,
          reviews.rating_teaching_quality,
          reviews.rating_grading_fairness,
@@ -423,16 +442,22 @@ myReviewsRouter.get('/', authenticateToken, async (req, res) => {
          reviews.status,
          reviews.created_at,
          reviews.updated_at,
+         offerings.id AS offering_id,
+         offerings.semester,
+         courses.sub_id3 AS course_id,
          courses.code AS course_code,
          courses.name_en AS course_name_en,
          courses.name_zh AS course_name_zh,
+         professors.id AS professor_id,
          professors.name_en AS professor_name_en,
-         professors.name_zh AS professor_name_zh,
-         offerings.semester
+         professors.name_zh AS professor_name_zh
        FROM reviews
-       JOIN offerings ON offerings.id = reviews.offering_id
-       JOIN courses ON courses.id = offerings.course_id
-       JOIN professors ON professors.id = offerings.professor_id
+       JOIN classes ON classes.scr_selcode = reviews.scr_selcode
+                    AND classes.cls_id      = reviews.cls_id
+       LEFT JOIN offerings ON offerings.scr_selcode = reviews.scr_selcode
+                           AND offerings.cls_id      = reviews.cls_id
+       LEFT JOIN courses ON courses.sub_id3 = offerings.course_id
+       LEFT JOIN professors ON professors.id = offerings.professor_id
        WHERE reviews.user_id = ?
        ORDER BY reviews.updated_at DESC, reviews.id DESC`,
       [req.user.id],
