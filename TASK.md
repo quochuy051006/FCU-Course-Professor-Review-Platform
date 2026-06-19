@@ -78,9 +78,9 @@ FINAL/
 - [x] Bước 3: Auth API
 - [x] Bước 4: Course / Professor / Offering / Review API
 - [x] Bước 5: Vote / Report / Admin API
+- [x] Bước 6: Frontend Vue cơ bản
 
 ### Chưa xong
-- [ ] Bước 6: Frontend Vue cơ bản
 - [ ] Bước 7: Hoàn thiện các trang frontend
 - [ ] Bước 8: README hoàn chỉnh + HackMD/Notion + kiểm tra trước khi nộp
 
@@ -265,34 +265,34 @@ Thêm tương tác và kiểm duyệt.
 Tạo khung frontend.
 
 ## File / cấu trúc cần có
-- [ ] `client/src/main.js`
-- [ ] `client/src/App.vue`
-- [ ] `client/src/router.js`
-- [ ] `client/src/api.js`
-- [ ] `client/src/assets/style.css`
-- [ ] `client/src/components/Navbar.vue`
-- [ ] `client/src/components/SearchBar.vue`
-- [ ] `client/src/components/OfferingCard.vue`
-- [ ] `client/src/components/ReviewCard.vue`
-- [ ] `client/src/components/RatingInput.vue`
-- [ ] `client/src/components/TagSelector.vue`
+- [x] `client/src/main.js`
+- [x] `client/src/App.vue`
+- [x] `client/src/router.js`
+- [x] `client/src/api.js`
+- [x] `client/src/assets/style.css`
+- [x] `client/src/components/Navbar.vue`
+- [x] `client/src/components/SearchBar.vue`
+- [x] `client/src/components/OfferingCard.vue`
+- [x] `client/src/components/ReviewCard.vue`
+- [x] `client/src/components/RatingInput.vue`
+- [x] `client/src/components/TagSelector.vue`
 
 ## Route cần tạo
-- [ ] `/`
-- [ ] `/login`
-- [ ] `/register`
-- [ ] `/search`
-- [ ] `/offerings/:id`
-- [ ] `/offerings/:id/review`
-- [ ] `/reviews/:id/edit`
-- [ ] `/me/reviews`
-- [ ] `/admin/reports`
+- [x] `/`
+- [x] `/login`
+- [x] `/register`
+- [x] `/search`
+- [x] `/offerings/:id`
+- [x] `/offerings/:id/review`
+- [x] `/reviews/:id/edit`
+- [x] `/me/reviews`
+- [x] `/admin/reports`
 
 ## Logic frontend cơ bản
-- [ ] Tích hợp Vue Router
-- [ ] `api.js` tự gắn JWT từ localStorage
-- [ ] Navbar hiển thị theo trạng thái login
-- [ ] Có route guard cơ bản cho admin / logged in user
+- [x] Tích hợp Vue Router
+- [x] `api.js` tự gắn JWT từ localStorage
+- [x] Navbar hiển thị theo trạng thái login
+- [x] Có route guard cơ bản cho admin / logged in user
 
 ## Tiêu chí hoàn thành
 - Frontend chạy được ở `http://localhost:5173`
@@ -451,7 +451,7 @@ Chuẩn bị tài liệu nộp bài.
 - [x] Hoàn thành Bước 5
 
 ### Sau đó mới làm
-- [ ] Bước 6
+- [x] Bước 6
 - [ ] Bước 7
 - [ ] Bước 8
 
@@ -470,5 +470,5 @@ Tình trạng hiện tại:
 - README / báo cáo: chưa hoàn thiện
 
 **Kết luận cuối:**
-Project hiện tại đã xong khoảng **5/8 bước**.  
-Việc cần làm ngay bây giờ là **Bước 6: Frontend Vue cơ bản**.
+Project hiện tại đã xong khoảng **6/8 bước**.
+Việc cần làm ngay bây giờ là **Bước 7: Hoàn thiện các trang frontend**.
