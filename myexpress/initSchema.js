@@ -12,6 +12,7 @@ import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
+import { TAG_DEFINITIONS } from './tagDefinitions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -82,6 +83,7 @@ export async function runInitSchema() {
   await addColumnIfMissing('courses', 'code', 'TEXT');
   await run(`UPDATE courses SET code = sub_id3 WHERE code IS NULL OR code = ''`);
   await run(`UPDATE courses SET name_zh = sub_name WHERE name_zh IS NULL OR name_zh = ''`);
+  await ensureCourseDepartments();
 
   // 4) Ensure users table safety constraints
   await recreateUsersIfNeeded();
@@ -95,32 +97,10 @@ export async function runInitSchema() {
   await recreateReportsIfNeeded();
 
   // 7) Seed metadata lookup tags
-  const tags = [
-    ['作業很多', 'Heavy Workload'],
-    ['作業適中', 'Moderate Workload'],
-    ['作業很少', 'Light Workload'],
-    ['老師親切', 'Friendly Teacher'],
-    ['老師嚴格', 'Strict Teacher'],
-    ['講解清楚', 'Clear Explanations'],
-    ['講解含糊', 'Unclear Explanations'],
-    ['點名嚴格', 'Strict Attendance'],
-    ['不點名', 'No Attendance Check'],
-    ['推薦', 'Recommended'],
-    ['不推薦', 'Not Recommended'],
-    ['考試容易', 'Easy Exams'],
-    ['考試困難', 'Hard Exams'],
-    ['開書考試', 'Open-book Exams'],
-    ['報告很多', 'Many Presentations'],
-    ['實用', 'Practical'],
-    ['理論', 'Theory-heavy'],
-    ['冷氣冷', 'Strong AC'],
-    ['冷氣弱', 'Weak AC'],
-    ['甜分高', 'Easy Grading'],
-  ];
   const tagStmt = db.prepare(`INSERT OR IGNORE INTO tags (name_zh, name_en) VALUES (?, ?)`);
-  tags.forEach(([zh, en]) => tagStmt.run(zh, en));
+  TAG_DEFINITIONS.forEach((tag) => tagStmt.run(tag.name_zh, tag.name_en));
   await new Promise((resolve) => tagStmt.finalize(resolve));
-  console.log(`Seed tags completed (${tags.length} tags processed)`);
+  console.log(`Seed tags completed (${TAG_DEFINITIONS.length} tags processed)`);
 
   // 8) Execute data normalization from classes ingestion
   await seedProfessorsAndOfferings();
@@ -129,6 +109,7 @@ export async function runInitSchema() {
   const metrics = {
     users:       (await get(`SELECT COUNT(*) AS n FROM users`)).n,
     courses:     (await get(`SELECT COUNT(*) AS n FROM courses`)).n,
+    course_departments: (await get(`SELECT COUNT(*) AS n FROM course_departments`)).n,
     classes:     (await get(`SELECT COUNT(*) AS n FROM classes`)).n,
     professors:  (await get(`SELECT COUNT(*) AS n FROM professors`)).n,
     offerings:   (await get(`SELECT COUNT(*) AS n FROM offerings`)).n,
@@ -155,6 +136,24 @@ async function addColumnIfMissing(table, column, typeAndDefault) {
 }
 
 async function recreateUsersIfNeeded() {
+  const exists = await get(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'`);
+
+  if (!exists) {
+    await run(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin')),
+        is_verified INTEGER NOT NULL DEFAULT 0 CHECK (is_verified IN (0, 1)),
+        verification_token TEXT UNIQUE,
+        is_banned INTEGER NOT NULL DEFAULT 0 CHECK (is_banned IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    return;
+  }
+
   const cols = await all(`PRAGMA table_info(users)`);
   const names = cols.map(c => c.name);
   if (!names.includes('is_banned')) {
@@ -492,4 +491,70 @@ if (isCli) {
       db.close();
       process.exit(1);
     });
+}
+
+async function ensureCourseDepartments() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS course_departments (
+      course_id TEXT NOT NULL,
+      dept_id TEXT NOT NULL,
+      PRIMARY KEY (course_id, dept_id),
+      FOREIGN KEY (course_id) REFERENCES courses(sub_id3) ON DELETE CASCADE,
+      FOREIGN KEY (dept_id) REFERENCES departments(dept_id) ON DELETE CASCADE
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name_zh TEXT NOT NULL UNIQUE,
+      name_en TEXT NOT NULL UNIQUE
+    )
+  `);
+
+  await run(`CREATE INDEX IF NOT EXISTS idx_course_departments_department
+             ON course_departments(dept_id)`);
+
+  await run(`
+    INSERT OR IGNORE INTO course_departments (course_id, dept_id)
+    SELECT DISTINCT cl.sub_id3, cl.dept_id
+    FROM classes cl
+    JOIN courses c ON c.sub_id3 = cl.sub_id3
+    JOIN departments d ON d.dept_id = cl.dept_id
+    WHERE cl.sub_id3 IS NOT NULL
+      AND TRIM(cl.sub_id3) <> ''
+      AND cl.dept_id IS NOT NULL
+      AND TRIM(cl.dept_id) <> ''
+  `);
+
+  await run(`
+    UPDATE courses
+    SET department = COALESCE(
+      (
+        SELECT GROUP_CONCAT(DISTINCT d.dept_name)
+        FROM course_departments cd
+        JOIN departments d ON d.dept_id = cd.dept_id
+        WHERE cd.course_id = courses.sub_id3
+      ),
+      '未提供'
+    )
+  `);
+
+  await run(`
+    CREATE TRIGGER IF NOT EXISTS trg_courses_department_required_insert
+    BEFORE INSERT ON courses
+    WHEN NEW.department IS NULL OR TRIM(NEW.department) = ''
+    BEGIN
+      SELECT RAISE(ABORT, 'courses.department is required');
+    END
+  `);
+
+  await run(`
+    CREATE TRIGGER IF NOT EXISTS trg_courses_department_required_update
+    BEFORE UPDATE OF department ON courses
+    WHEN NEW.department IS NULL OR TRIM(NEW.department) = ''
+    BEGIN
+      SELECT RAISE(ABORT, 'courses.department is required');
+    END
+  `);
 }

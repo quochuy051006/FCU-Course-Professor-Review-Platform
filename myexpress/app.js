@@ -20,6 +20,7 @@ import { reviewsRouter, myReviewsRouter } from './routes/reviews.js';
 import votesRouter from './routes/votes.js';
 import reportsRouter from './routes/reports.js';
 import adminRouter from './routes/admin.js';
+import tagsRouter from './routes/tags.js';
 
 var app = express();
 app.use(cors());
@@ -45,6 +46,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/courses', coursesRouter);
 app.use('/api/professors', professorsRouter);
 app.use('/api/offerings', offeringsRouter);
+app.use('/api/tags', tagsRouter);
 // reviewsRouter: PUT/DELETE /api/reviews/:id
 app.use('/api/reviews', reviewsRouter);
 // myReviewsRouter: GET /api/me/reviews

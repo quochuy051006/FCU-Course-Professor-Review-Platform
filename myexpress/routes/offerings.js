@@ -33,12 +33,17 @@ function shapeOffering(row) {
     course_code: row.course_code,
     course_name_en: row.course_name_en,
     course_name_zh: row.course_name_zh,
+    course_credits: row.course_credits,
     professor_id: row.professor_id,
     professor_name_en: row.professor_name_en,
     professor_name_zh: row.professor_name_zh,
     semester: row.semester,
     scr_selcode: row.scr_selcode,
     cls_id: row.cls_id,
+    class_name: row.class_name,
+    department_id: row.department_id,
+    schedule: row.schedule,
+    capacity: row.capacity,
     review_count: row.review_count ?? 0,
     average_rating: avg,
   };
@@ -55,9 +60,14 @@ const OFFERING_SELECT = `
     c.code        AS course_code,
     c.name_en     AS course_name_en,
     c.name_zh     AS course_name_zh,
+    c.credits     AS course_credits,
     o.professor_id,
     p.name_en     AS professor_name_en,
     p.name_zh     AS professor_name_zh,
+    cl.cls_name   AS class_name,
+    cl.dept_id    AS department_id,
+    cl.scr_period AS schedule,
+    cl.scr_precnt AS capacity,
     (SELECT COUNT(*)
        FROM reviews r
       WHERE r.scr_selcode = o.scr_selcode
@@ -77,56 +87,186 @@ const OFFERING_SELECT = `
   FROM offerings o
   LEFT JOIN courses     c ON c.sub_id3 = o.course_id
   LEFT JOIN professors  p ON p.id      = o.professor_id
+  LEFT JOIN classes    cl ON cl.scr_selcode = o.scr_selcode
+                         AND cl.cls_id      = o.cls_id
 `;
 
 // -----------------------------------------------------------------------
 // GET /api/offerings
 // -----------------------------------------------------------------------
 router.get('/', (req, res) => {
-  const sql = OFFERING_SELECT + ` ORDER BY o.id DESC LIMIT 200`;
+  const requestedLimit = Number.parseInt(req.query.limit, 10);
+  const requestedOffset = Number.parseInt(req.query.offset, 10);
+  const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, 200)
+    : 200;
+  const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0
+    ? requestedOffset
+    : 0;
+  const sql = OFFERING_SELECT + ` ORDER BY o.id DESC LIMIT ? OFFSET ?`;
 
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      console.error('GET /api/offerings failed:', err.message);
+  db.get('SELECT COUNT(*) AS total FROM offerings', [], (countErr, countRow) => {
+    if (countErr) {
+      console.error('GET /api/offerings (count) failed:', countErr.message);
       return res.status(500).json({ message: 'Failed to load offerings' });
     }
-    res.json({ count: rows.length, items: rows.map(shapeOffering) });
+
+    db.all(sql, [limit, offset], (err, rows) => {
+      if (err) {
+        console.error('GET /api/offerings failed:', err.message);
+        return res.status(500).json({ message: 'Failed to load offerings' });
+      }
+
+      res.json({
+        count: rows.length,
+        total: countRow?.total ?? 0,
+        limit,
+        offset,
+        items: rows.map(shapeOffering),
+      });
+    });
   });
 });
 
 // -----------------------------------------------------------------------
-// GET /api/offerings/search?q=keyword
+// GET /api/offerings/search with optional structured filters
 // -----------------------------------------------------------------------
 router.get('/search', (req, res) => {
-  const q = (req.query.q || '').toString().trim();
+  const readFilter = (name) => (req.query[name] || '').toString().trim();
+  const filters = {
+    q: readFilter('q'),
+    selcode: readFilter('selcode'),
+    course_name: readFilter('course_name'),
+    professor: readFilter('professor'),
+    department: readFilter('department'),
+    semester: readFilter('semester'),
+    credits: readFilter('credits'),
+  };
 
-  if (!q) {
-    return res.status(400).json({
-      message: 'Query parameter "q" is required and must not be empty',
-    });
+  if (!Object.values(filters).some(Boolean)) {
+    return res.status(400).json({ message: 'At least one search filter is required' });
   }
 
-  const like = `%${q}%`;
-  // Boc cac dieu kien OR trong ngoac don de tranh nham voi LEFT JOIN ben tren.
-  // `OFFERING_SELECT` khong co WHERE, nen ta co the noi truc tiep.
-  const sql = OFFERING_SELECT + `
-    WHERE (c.code        LIKE ?
-        OR c.name_en     LIKE ?
-        OR c.name_zh     LIKE ?
-        OR p.name_en     LIKE ?
-        OR p.name_zh     LIKE ?
-        OR o.semester    LIKE ?)
-    ORDER BY o.id DESC
-    LIMIT 200
-  `;
-  const params = [like, like, like, like, like, like];
+  const requestedLimit = Number.parseInt(req.query.limit, 10);
+  const requestedOffset = Number.parseInt(req.query.offset, 10);
+  const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, 200)
+    : 200;
+  const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0
+    ? requestedOffset
+    : 0;
+  const conditions = [];
+  const params = [];
 
-  db.all(sql, params, (err, rows) => {
-    if (err) {
-      console.error('GET /api/offerings/search failed:', err.message);
+  if (filters.q) {
+    const like = `%${filters.q}%`;
+    conditions.push(`(
+      o.course_id LIKE ? OR c.code LIKE ? OR c.name_en LIKE ? OR c.name_zh LIKE ?
+      OR o.scr_selcode LIKE ? OR p.name_en LIKE ? OR p.name_zh LIKE ?
+      OR cl.scr_teacher LIKE ? OR cl.dept_id LIKE ? OR cl.cls_name LIKE ?
+      OR o.semester LIKE ?
+    )`);
+    params.push(...Array(11).fill(like));
+  }
+
+  if (filters.selcode) {
+    conditions.push('o.scr_selcode LIKE ?');
+    params.push(`%${filters.selcode}%`);
+  }
+
+  if (filters.course_name) {
+    conditions.push('(c.name_zh LIKE ? OR c.name_en LIKE ? OR c.code LIKE ? OR o.course_id LIKE ?)');
+    params.push(...Array(4).fill(`%${filters.course_name}%`));
+  }
+
+  if (filters.professor) {
+    conditions.push('(p.name_zh LIKE ? OR p.name_en LIKE ? OR cl.scr_teacher LIKE ?)');
+    params.push(...Array(3).fill(`%${filters.professor}%`));
+  }
+
+  if (filters.department) {
+    conditions.push('(cl.dept_id LIKE ? OR cl.cls_name LIKE ? OR c.department LIKE ? OR p.department LIKE ?)');
+    params.push(...Array(4).fill(`%${filters.department}%`));
+  }
+
+  if (filters.semester) {
+    conditions.push('o.semester LIKE ?');
+    params.push(`%${filters.semester}%`);
+  }
+
+  if (filters.credits) {
+    const credits = Number(filters.credits);
+    if (!Number.isFinite(credits) || credits < 0) {
+      return res.status(400).json({ message: 'credits must be a non-negative number' });
+    }
+    conditions.push('c.credits = ?');
+    params.push(credits);
+  }
+
+  const whereSql = `WHERE ${conditions.join(' AND ')}`;
+  const sql = OFFERING_SELECT + whereSql + `
+    ORDER BY o.id DESC
+    LIMIT ? OFFSET ?
+  `;
+  const countSql = `
+    SELECT COUNT(*) AS total
+    FROM offerings o
+    LEFT JOIN courses    c ON c.sub_id3 = o.course_id
+    LEFT JOIN professors p ON p.id      = o.professor_id
+    LEFT JOIN classes   cl ON cl.scr_selcode = o.scr_selcode
+                          AND cl.cls_id      = o.cls_id
+    ${whereSql}
+  `;
+
+  db.get(countSql, params, (countErr, countRow) => {
+    if (countErr) {
+      console.error('GET /api/offerings/search (count) failed:', countErr.message);
       return res.status(500).json({ message: 'Failed to search offerings' });
     }
-    res.json({ query: q, count: rows.length, items: rows.map(shapeOffering) });
+
+    db.all(sql, [...params, limit, offset], (err, rows) => {
+      if (err) {
+        console.error('GET /api/offerings/search failed:', err.message);
+        return res.status(500).json({ message: 'Failed to search offerings' });
+      }
+
+      res.json({
+        query: filters.q,
+        filters,
+        count: rows.length,
+        total: countRow?.total ?? 0,
+        limit,
+        offset,
+        items: rows.map(shapeOffering),
+      });
+    });
+  });
+});
+
+// -----------------------------------------------------------------------
+// GET /api/offerings/departments
+// -----------------------------------------------------------------------
+router.get('/departments', (req, res) => {
+  const sql = `
+    SELECT
+      d.dept_id,
+      d.dept_name,
+      COUNT(DISTINCT o.id) AS offering_count
+    FROM departments d
+    LEFT JOIN classes cl ON cl.dept_id = d.dept_id
+    LEFT JOIN offerings o ON o.scr_selcode = cl.scr_selcode
+                         AND o.cls_id      = cl.cls_id
+    GROUP BY d.dept_id, d.dept_name
+    ORDER BY d.dept_id ASC
+  `;
+
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error('GET /api/offerings/departments failed:', err.message);
+      return res.status(500).json({ message: 'Failed to load departments' });
+    }
+
+    res.json({ count: rows.length, items: rows });
   });
 });
 
@@ -149,16 +289,24 @@ router.get('/:id', (req, res) => {
       c.code        AS course_code,
       c.name_en     AS course_name_en,
       c.name_zh     AS course_name_zh,
+      c.credits     AS course_credits,
       c.department  AS course_department,
       c.description AS course_description,
       o.professor_id,
       p.name_en     AS professor_name_en,
       p.name_zh     AS professor_name_zh,
       p.department  AS professor_department,
-      p.email       AS professor_email
+      p.email       AS professor_email,
+      cl.dept_id    AS department_id,
+      cl.cls_name   AS class_name,
+      cl.scr_teacher AS original_teacher_name,
+      cl.scr_period AS schedule,
+      cl.scr_precnt AS capacity
     FROM offerings o
     LEFT JOIN courses     c ON c.sub_id3 = o.course_id
     LEFT JOIN professors  p ON p.id      = o.professor_id
+    LEFT JOIN classes    cl ON cl.scr_selcode = o.scr_selcode
+                           AND cl.cls_id      = o.cls_id
     WHERE o.id = ?
   `;
 
@@ -242,8 +390,17 @@ router.get('/:id', (req, res) => {
             course_code: offering.course_code,
             name_en:     offering.course_name_en,
             name_zh:     offering.course_name_zh,
+            credits:     offering.course_credits,
             department:  offering.course_department,
             description: offering.course_description,
+          },
+          class_information: {
+            selection_code: offering.scr_selcode,
+            class_id:      offering.cls_id,
+            class_name:    offering.class_name,
+            department_id: offering.department_id,
+            schedule:      offering.schedule,
+            capacity:      offering.capacity,
           },
           professor: {
             professor_id:     offering.professor_id,
@@ -251,6 +408,7 @@ router.get('/:id', (req, res) => {
             name_zh:          offering.professor_name_zh,
             professor_department: offering.professor_department,
             professor_email:      offering.professor_email,
+            original_name:        offering.original_teacher_name,
           },
           review_summary: summary,
           popular_tags:   popularTags,

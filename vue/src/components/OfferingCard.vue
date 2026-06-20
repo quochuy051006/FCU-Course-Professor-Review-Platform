@@ -17,13 +17,28 @@ const rating = computed(() => {
 
 <template>
   <article class="card offering-card">
-    <div>
-      <p class="eyebrow">{{ offering.course_code }} · {{ offering.semester }}</p>
-      <h2>{{ offering.course_name_en || offering.name_en }}</h2>
-      <p v-if="offering.course_name_zh">{{ offering.course_name_zh }}</p>
-      <p>
-        Professor: {{ offering.professor_name_en || offering.professor?.name_en || 'Unknown' }}
-      </p>
+    <div class="offering-card__content">
+      <p class="eyebrow">{{ offering.course_id }} &middot; {{ offering.semester }}</p>
+      <h2>{{ offering.course_name_zh || 'Unnamed course' }}</h2>
+
+      <dl class="offering-card__details">
+        <div>
+          <dt>Selection code</dt>
+          <dd>{{ offering.scr_selcode }}</dd>
+        </div>
+        <div>
+          <dt>Class ID</dt>
+          <dd>{{ offering.cls_id }}</dd>
+        </div>
+        <div>
+          <dt>Credits</dt>
+          <dd>{{ offering.course_credits ?? 'Not provided' }}</dd>
+        </div>
+        <div>
+          <dt>Professor</dt>
+          <dd>{{ offering.professor_name_zh || 'Not provided' }}</dd>
+        </div>
+      </dl>
     </div>
 
     <div class="offering-card__summary">

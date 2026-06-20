@@ -79,9 +79,9 @@ FINAL/
 - [x] Bước 4: Course / Professor / Offering / Review API
 - [x] Bước 5: Vote / Report / Admin API
 - [x] Bước 6: Frontend Vue cơ bản
+- [x] Bước 7: Hoàn thiện các trang frontend
 
 ### Chưa xong
-- [ ] Bước 7: Hoàn thiện các trang frontend
 - [ ] Bước 8: README hoàn chỉnh + HackMD/Notion + kiểm tra trước khi nộp
 
 ---
@@ -306,65 +306,65 @@ Tạo khung frontend.
 Kết nối giao diện với backend.
 
 ## Trang cần làm
-- [ ] `HomePage.vue`
-- [ ] `LoginPage.vue`
-- [ ] `RegisterPage.vue`
-- [ ] `SearchResultsPage.vue`
-- [ ] `OfferingDetailPage.vue`
-- [ ] `CreateReviewPage.vue`
-- [ ] `EditReviewPage.vue`
-- [ ] `MyReviewsPage.vue`
-- [ ] `AdminReportsPage.vue`
+- [x] `HomePage.vue`
+- [x] `LoginPage.vue`
+- [x] `RegisterPage.vue`
+- [x] `SearchResultsPage.vue`
+- [x] `OfferingDetailPage.vue`
+- [x] `CreateReviewPage.vue`
+- [x] `EditReviewPage.vue`
+- [x] `MyReviewsPage.vue`
+- [x] `AdminReportsPage.vue`
 
 ## Chức năng từng trang
 ### Home
-- [ ] Hiển thị tên website
-- [ ] Có search bar
-- [ ] Hiển thị offerings
+- [x] Hiển thị tên website
+- [x] Có search bar
+- [x] Hiển thị offerings
 
 ### Login
-- [ ] Gọi API login
-- [ ] Lưu token
-- [ ] Chuyển về home
+- [x] Gọi API login
+- [x] Lưu token
+- [x] Chuyển về home
 
 ### Register
-- [ ] Gọi API register
-- [ ] Hiển thị `verification_link`
+- [x] Gọi API register
+- [x] Hiển thị `verification_link`
 
 ### SearchResults
-- [ ] Gọi API search offerings
-- [ ] Hiển thị kết quả
+- [x] Gọi API search offerings
+- [x] Hiển thị kết quả
 
 ### OfferingDetail
-- [ ] Gọi API offering detail
-- [ ] Gọi API reviews
-- [ ] Hiển thị average rating
-- [ ] Hiển thị tags
-- [ ] Hiển thị review list
-- [ ] Vote / report được
+- [x] Gọi API offering detail
+- [x] Gọi API reviews
+- [x] Hiển thị average rating
+- [x] Hiển thị tags
+- [x] Hiển thị review list
+- [x] Vote / report được
 
 ### CreateReview
-- [ ] Form 6 rating
-- [ ] comment
-- [ ] advice
-- [ ] anonymous checkbox
-- [ ] tag selector
-- [ ] submit review
+- [x] Form 6 rating
+- [x] comment
+- [x] advice
+- [x] anonymous checkbox
+- [x] tag selector
+- [x] submit review
 
 ### EditReview
-- [ ] Load review cũ
-- [ ] Sửa review
-- [ ] Submit update
+- [x] Load review cũ
+- [x] Sửa review
+- [x] Submit update
 
 ### MyReviews
-- [ ] Xem danh sách review của mình
-- [ ] Edit
-- [ ] Delete
+- [x] Xem danh sách review của mình
+- [x] Edit
+- [x] Delete
 
 ### AdminReports
-- [ ] Xem reports
-- [ ] Hide review
-- [ ] Resolve report
+- [x] Xem reports
+- [x] Hide review
+- [x] Resolve report
 
 ## Tiêu chí hoàn thành
 - User có thể đăng ký / đăng nhập trên giao diện
@@ -379,16 +379,16 @@ Kết nối giao diện với backend.
 Chuẩn bị tài liệu nộp bài.
 
 ## README.md
-- [ ] Viết mô tả project
-- [ ] Viết motivation
-- [ ] Viết tech stack
-- [ ] Viết folder structure
-- [ ] Viết hướng dẫn chạy backend
-- [ ] Viết hướng dẫn chạy frontend
-- [ ] Viết hướng dẫn seed database
-- [ ] Viết demo accounts
-- [ ] Viết progress / future work
-- [ ] Ghi chú dữ liệu mô phỏng
+- [x] Viết mô tả project
+- [x] Viết motivation
+- [x] Viết tech stack
+- [x] Viết folder structure
+- [x] Viết hướng dẫn chạy backend
+- [x] Viết hướng dẫn chạy frontend
+- [x] Viết hướng dẫn seed database
+- [x] Viết demo accounts
+- [x] Viết progress / future work
+- [x] Ghi chú dữ liệu mô phỏng
 
 ## HackMD / Notion
 - [ ] Thêm họ tên
@@ -452,7 +452,7 @@ Chuẩn bị tài liệu nộp bài.
 
 ### Sau đó mới làm
 - [x] Bước 6
-- [ ] Bước 7
+- [x] Bước 7
 - [ ] Bước 8
 
 ---
@@ -466,9 +466,9 @@ Tình trạng hiện tại:
 - Auth API: ổn
 - API nghiệp vụ chính (Course / Professor / Offering / Review): ổn
 - Vote / Report / Admin API: ổn
-- Frontend hoàn chỉnh: chưa làm
+- Frontend hoàn chỉnh: ổn
 - README / báo cáo: chưa hoàn thiện
 
 **Kết luận cuối:**
-Project hiện tại đã xong khoảng **6/8 bước**.
-Việc cần làm ngay bây giờ là **Bước 7: Hoàn thiện các trang frontend**.
+Project hiện tại đã xong khoảng **7/8 bước**.
+Việc cần làm ngay bây giờ là **Bước 8: README / HackMD / hoàn thiện trước khi nộp**.
